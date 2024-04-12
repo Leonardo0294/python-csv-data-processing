@@ -1,14 +1,14 @@
 import csv
 import mariadb
 import os
+import time
 
 def leer_datos_desde_csv(nombre_archivo):
     """Lee los datos desde un archivo CSV y devuelve una lista de diccionarios."""
     datos = []
     with open(nombre_archivo, newline='', encoding='utf-8') as archivo_csv:
         lector_csv = csv.DictReader(archivo_csv)
-        for fila in lector_csv:
-            datos.append(fila)
+        datos = list(lector_csv)  # Leer todos los datos en una lista de diccionarios
     return datos
 
 def conectar_base_de_datos(host, puerto, usuario, contraseña, nombre_base_datos):
@@ -44,39 +44,49 @@ def crear_tabla_localidades(conexion):
         print(f"Error al crear la tabla: {error}")
 
 def insertar_datos_en_tabla(conexion, datos):
-    """Inserta datos en la tabla 'Localidades'."""
+    """Inserta datos en la tabla 'Localidades' utilizando una transacción."""
     try:
         cursor = conexion.cursor()
-        for fila in datos:
-            provincia = fila['provincia']
-            localidad = fila['localidad']
-            cursor.execute("INSERT INTO Localidades (Provincia, Localidad) VALUES (?, ?)", (provincia, localidad))
+        cursor.execute("START TRANSACTION")
+
+        valores = [(fila['provincia'], fila['localidad']) for fila in datos]
+        cursor.executemany("INSERT INTO Localidades (Provincia, Localidad) VALUES (?, ?)", valores)
+
         conexion.commit()
         print('Datos insertados correctamente en la tabla "Localidades".')
     except mariadb.Error as error:
+        conexion.rollback()
         print(f"Error al insertar datos: {error}")
 
 def exportar_csv_por_provincia(conexion):
-    """Exporta datos a archivos CSV por provincia."""
+    """Exporta datos a archivos CSV por provincia y cuenta los archivos exportados."""
     try:
         cursor = conexion.cursor()
         cursor.execute("SELECT DISTINCT Provincia FROM Localidades")
-        provincias = cursor.fetchall()
+        provincias = [provincia[0] for provincia in cursor.fetchall()]
 
         if not os.path.exists('csv_exports'):
             os.makedirs('csv_exports')
 
-        for provincia in provincias:
-            provincia_nombre = provincia[0]
-            cursor.execute("SELECT Localidad FROM Localidades WHERE Provincia = ?", (provincia_nombre,))
-            localidades = cursor.fetchall()
+        archivos_exportados = 0
 
-            with open(f'csv_exports/{provincia_nombre}.csv', 'w', newline='', encoding='utf-8') as archivo_csv:
+        # Utilizar executemany para obtener localidades por provincia
+        query_localidades = "SELECT Localidad FROM Localidades WHERE Provincia = ?"
+        for provincia in provincias:
+            cursor.execute(query_localidades, (provincia,))
+            localidades = [localidad[0] for localidad in cursor.fetchall()]
+
+            with open(f'csv_exports/{provincia}.csv', 'w', newline='', encoding='utf-8') as archivo_csv:
                 escritor_csv = csv.writer(archivo_csv)
                 escritor_csv.writerow(['Localidad'])
-                escritor_csv.writerows(localidades)
+                escritor_csv.writerows(zip(localidades))
 
-            print(f"Archivo CSV exportado para la provincia: {provincia_nombre}")
+            archivos_exportados += 1
+
+        if archivos_exportados > 0:
+            print(f"{archivos_exportados} archivo(s) CSV exportado(s) con éxito.")
+        else:
+            print("No se exportaron archivos CSV.")
 
     except mariadb.Error as error:
         print(f"Error al exportar archivos CSV por provincia: {error}")
@@ -99,18 +109,24 @@ def main():
     if not conexion:
         return
 
-    # Crear la tabla 'Localidades'
-    crear_tabla_localidades(conexion)
+    try:
+        # Crear la tabla 'Localidades'
+        crear_tabla_localidades(conexion)
 
-    # Insertar datos en la tabla 'Localidades'
-    insertar_datos_en_tabla(conexion, datos_csv)
+        # Insertar datos en la tabla 'Localidades'
+        start_time = time.time()
+        insertar_datos_en_tabla(conexion, datos_csv)
+        print(f"Tiempo de inserción en la base de datos: {time.time() - start_time:.2f} segundos")
 
-    # Exportar datos a archivos CSV por provincia
-    exportar_csv_por_provincia(conexion)
+        # Exportar datos a archivos CSV por provincia
+        start_time = time.time()
+        exportar_csv_por_provincia(conexion)
+        print(f"Tiempo de exportación de archivos CSV: {time.time() - start_time:.2f} segundos")
 
-    # Cerrar la conexión
-    conexion.close()
-    print('Proceso completado con éxito.')
+    finally:
+        # Cerrar la conexión
+        conexion.close()
+        print('Proceso completado con éxito.')
 
 if __name__ == '__main__':
     main()
