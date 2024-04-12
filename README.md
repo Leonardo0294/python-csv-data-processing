@@ -14,7 +14,7 @@ Este script de Python permite realizar operaciones básicas de interacción con 
    Clona este repositorio
 
    ```bash
-   git clone https://github.com/tu-usuario/nombre-repositorio.git
+   git clone https://github.com/Leonardo0294/python-csv-data-processing.git
 
 
 Instalar Dependencias:

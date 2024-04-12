@@ -8,7 +8,7 @@ def leer_datos_desde_csv(nombre_archivo):
     datos = []
     with open(nombre_archivo, newline='', encoding='utf-8') as archivo_csv:
         lector_csv = csv.DictReader(archivo_csv)
-        datos = list(lector_csv)  # Leer todos los datos en una lista de diccionarios
+        datos = list(lector_csv)  
     return datos
 
 def conectar_base_de_datos(host, puerto, usuario, contraseña, nombre_base_datos):
@@ -70,7 +70,7 @@ def exportar_csv_por_provincia(conexion):
 
         archivos_exportados = 0
 
-        # Utilizar executemany para obtener localidades por provincia
+        # Se utiliza executemany para obtener localidades por provincia
         query_localidades = "SELECT Localidad FROM Localidades WHERE Provincia = ?"
         for provincia in provincias:
             cursor.execute(query_localidades, (provincia,))
@@ -95,10 +95,10 @@ def main():
     # Nombre del archivo CSV
     nombre_archivo = 'localidades.csv'
 
-    # Leer datos desde el archivo CSV
+    # Se leen datos desde el archivo CSV
     datos_csv = leer_datos_desde_csv(nombre_archivo)
 
-    # Conectar a la base de datos
+    # Conexion a la base de datos
     conexion = conectar_base_de_datos(
         host='localhost',
         puerto=3306,
@@ -110,21 +110,21 @@ def main():
         return
 
     try:
-        # Crear la tabla 'Localidades'
+        # Se crea la tabla 'Localidades'
         crear_tabla_localidades(conexion)
 
-        # Insertar datos en la tabla 'Localidades'
+        # Se insertan datos en la tabla Localidades
         start_time = time.time()
         insertar_datos_en_tabla(conexion, datos_csv)
         print(f"Tiempo de inserción en la base de datos: {time.time() - start_time:.2f} segundos")
 
-        # Exportar datos a archivos CSV por provincia
+        # Se exportan los datos a archivos CSV por provincia
         start_time = time.time()
         exportar_csv_por_provincia(conexion)
         print(f"Tiempo de exportación de archivos CSV: {time.time() - start_time:.2f} segundos")
 
     finally:
-        # Cerrar la conexión
+        # Cierre de la conexión
         conexion.close()
         print('Proceso completado con éxito.')
 
